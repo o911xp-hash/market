@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Консьерж-помощник</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f0f2f5;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  }
+  header .logo { font-size: 26px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header p { font-size: 12px; color: #a0a8c0; margin-top: 2px; }
+
+  /* API key bar */
+  .apibar {
+    background: #fff7ed;
+    border-bottom: 1px solid #fed7aa;
+    padding: 8px 24px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #7c2d12;
+  }
+  .apibar input {
+    flex: 1;
+    max-width: 420px;
+    border: 1.5px solid #fdba74;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    outline: none;
+    font-family: monospace;
+  }
+  .apibar input:focus { border-color: #ea580c; }
+  .apibar button {
+    background: #ea580c;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .apibar button:hover { background: #c2410c; }
+  .apibar .status { font-size: 12px; }
+  .apibar .status.ok { color: #16a34a; }
+
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Chat */
+  .chat-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg {
+    max-width: 72%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    line-height: 1.55;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: #1a1a2e;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.bot {
+    align-self: flex-start;
+    background: #f0f2f5;
+    color: #1a1a2e;
+    border-bottom-left-radius: 4px;
+  }
+  .msg.typing { color: #888; font-style: italic; }
+
+  .suggestions {
+    display: flex;
+    gap: 8px;
+    padding: 0 24px 14px;
+    flex-wrap: wrap;
+  }
+  .suggestions button {
+    background: #fff;
+    border: 1.5px solid #d1d5db;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #374151;
+    transition: border-color .2s, background .2s;
+  }
+  .suggestions button:hover { border-color: #1a1a2e; background: #f0f2f5; }
+
+  .chat-input-bar {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 10px;
+    background: #fff;
+  }
+  .chat-input-bar input {
+    flex: 1;
+    border: 1.5px solid #d1d5db;
+    border-radius: 24px;
+    padding: 10px 18px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color .2s;
+  }
+  .chat-input-bar input:focus { border-color: #1a1a2e; }
+  .chat-input-bar button {
+    background: #1a1a2e;
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    padding: 10px 22px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  .chat-input-bar button:disabled { opacity: .45; cursor: default; }
+
+  /* Cart */
+  .cart-panel {
+    width: 320px;
+    background: #fff;
+    border-left: 1px solid #e5e7eb;
+    display: flex;
+    flex-direction: column;
+  }
+  .cart-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .cart-header h2 { font-size: 16px; font-weight: 600; }
+  .cart-header button {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #ef4444;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background .2s;
+  }
+  .cart-header button:hover { background: #fee2e2; }
+
+  .cart-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cart-empty { text-align: center; color: #9ca3af; font-size: 13px; padding: 40px 0; }
+
+  .cart-item {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+  .cart-item .item-name { font-size: 13px; font-weight: 500; color: #111827; margin-bottom: 4px; }
+  .cart-item .item-meta { display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; }
+  .cart-item .item-price { font-weight: 600; color: #1a1a2e; }
+
+  .cart-footer { padding: 16px 20px; border-top: 1px solid #e5e7eb; }
+  .cart-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 14px;
+  }
+  .btn-checkout {
+    width: 100%;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  .btn-checkout:hover { background: #15803d; }
+  .btn-checkout:disabled { background: #9ca3af; cursor: default; }
+
+  @media (max-width: 640px) {
+    .cart-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🛒</span>
+  <div>
+    <h1>Консьерж-помощник</h1>
+    <p>Опишите, что хотите — подберём и добавим в корзину</p>
+  </div>
+</header>
+
+<div class="apibar" id="apibar">
+  <span>🔑 Anthropic API-ключ (необязательно — без него работает демо-режим):</span>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
+  <button onclick="saveKey()">Сохранить</button>
+  <span class="status" id="keyStatus"></span>
+</div>
+
+<div class="layout">
+  <div class="chat-panel">
+    <div class="messages" id="messages">
+      <div class="msg bot">Привет! Я помогу вам собрать корзину. Просто напишите, что вам нужно — например:<br><br>
+        «Собери безлактозный завтрак до 1500 руб» или<br>
+        «Хочу веганский завтрак до 800 рублей»</div>
+    </div>
+
+    <div class="suggestions">
+      <button onclick="suggest('Собери безлактозный завтрак до 1500 руб')">🥛 Безлактозный завтрак до 1500 ₽</button>
+      <button onclick="suggest('Хочу веганский завтрак до 800 рублей')">🌱 Веганский завтрак до 800 ₽</button>
+      <button onclick="suggest('Подбери продукты для завтрака с яйцами до 500 руб')">🥚 Завтрак с яйцами до 500 ₽</button>
+      <button onclick="suggest('Что можно купить для перекуса до 600 руб?')">🥗 Перекус до 600 ₽</button>
+    </div>
+
+    <div class="chat-input-bar">
+      <input id="msgInput" type="text" placeholder="Напишите запрос…" onkeydown="if(event.key==='Enter') sendMessage()" />
+      <button id="sendBtn" onclick="sendMessage()">Отправить</button>
+    </div>
+  </div>
+
+  <div class="cart-panel">
+    <div class="cart-header">
+      <h2>🛍 Корзина</h2>
+      <button onclick="clearCart()">Очистить</button>
+    </div>
+    <div class="cart-items" id="cartItems">
+      <div class="cart-empty">Корзина пуста</div>
+    </div>
+    <div class="cart-footer">
+      <div class="cart-total">
+        <span>Итого</span>
+        <span id="cartTotal">0 ₽</span>
+      </div>
+      <button class="btn-checkout" id="checkoutBtn" disabled onclick="checkout()">Оформить заказ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Catalog ─────────────────────────────────────────────────────────────────
+const CATALOG = [
+  {id:1,  name:"Молоко безлактозное 1л",           cat:"Молочные",  price:120, tags:["безлактозный","завтрак"]},
+  {id:2,  name:"Творог безлактозный 200г",          cat:"Молочные",  price:185, tags:["безлактозный","завтрак","белок"]},
+  {id:3,  name:"Йогурт безлактозный натуральный 300г", cat:"Молочные", price:145, tags:["безлактозный","завтрак"]},
+  {id:4,  name:"Масло сливочное безлактозное 200г", cat:"Молочные",  price:220, tags:["безлактозный"]},
+  {id:5,  name:"Молоко обычное 1л",                 cat:"Молочные",  price:85,  tags:["завтрак"]},
+  {id:6,  name:"Овсянка Геркулес 500г",             cat:"Крупы",     price:95,  tags:["безлактозный","завтрак","веганский"]},
+  {id:7,  name:"Гречка 900г",                       cat:"Крупы",     price:110, tags:["безлактозный","веганский","обед"]},
+  {id:8,  name:"Хлеб тостовый 500г",                cat:"Хлеб",      price:89,  tags:["безлактозный","завтрак"]},
+  {id:9,  name:"Хлебцы рисовые 100г",               cat:"Хлеб",      price:120, tags:["безлактозный","завтрак","веганский","безглютеновый"]},
+  {id:10, name:"Мюсли с орехами 400г",              cat:"Крупы",     price:230, tags:["безлактозный","завтрак","веганский"]},
+  {id:11, name:"Яйцо куриное С1 10шт",              cat:"Яйца",      price:130, tags:["безлактозный","завтрак","белок"]},
+  {id:12, name:"Банан 1кг",                         cat:"Фрукты",    price:99,  tags:["безлактозный","завтрак","веганский"]},
+  {id:13, name:"Яблоко Голден 1кг",                 cat:"Фрукты",    price:115, tags:["безлактозный","завтрак","веганский"]},
+  {id:14, name:"Черника замороженная 400г",          cat:"Ягоды",     price:250, tags:["безлактозный","завтрак","веганский"]},
+  {id:15, name:"Клубника замороженная 400г",         cat:"Ягоды",     price:220, tags:["безлактозный","завтрак","веганский"]},
+  {id:16, name:"Сок апельсиновый 1л",               cat:"Напитки",   price:160, tags:["безлактозный","завтрак","веганский"]},
+  {id:17, name:"Кофе молотый 250г",                 cat:"Напитки",   price:420, tags:["безлактозный","завтрак","веганский"]},
+  {id:18, name:"Чай зелёный 25 пакетиков",          cat:"Напитки",   price:180, tags:["безлактозный","завтрак","веганский"]},
+  {id:19, name:"Растительное молоко овсяное 1л",    cat:"Напитки",   price:175, tags:["безлактозный","завтрак","веганский"]},
+  {id:20, name:"Миндаль 200г",                      cat:"Орехи",     price:350, tags:["безлактозный","завтрак","веганский","белок"]},
+  {id:21, name:"Мёд цветочный 500г",                cat:"Сладости",  price:380, tags:["безлактозный","завтрак"]},
+  {id:22, name:"Авокадо 1шт",                       cat:"Овощи",     price:150, tags:["безлактозный","завтрак","веганский"]},
+  {id:23, name:"Красная рыба слабосолёная 200г",    cat:"Рыба",      price:480, tags:["безлактозный","завтрак","белок"]},
+  {id:24, name:"Ветчина куриная 200г",              cat:"Мясо",      price:260, tags:["безлактозный","завтрак","белок"]},
+  {id:25, name:"Сыр твёрдый 200г",                  cat:"Молочные",  price:290, tags:["завтрак","белок"]},
+  {id:26, name:"Куриное филе 1кг",                  cat:"Мясо",      price:350, tags:["безлактозный","белок","обед"]},
+  {id:27, name:"Лосось стейк 500г",                 cat:"Рыба",      price:890, tags:["безлактозный","белок","обед"]},
+  {id:28, name:"Брокколи 500г",                     cat:"Овощи",     price:160, tags:["безлактозный","веганский","обед"]},
+  {id:29, name:"Рис длиннозёрный 1кг",              cat:"Крупы",     price:130, tags:["безлактозный","веганский","обед"]},
+  {id:30, name:"Оливковое масло 500мл",             cat:"Масла",     price:590, tags:["безлактозный","веганский"]},
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let cart = [];  // [{product, qty}]
+let history = [];
+let apiKey = localStorage.getItem('apiKey') || '';
+
+if (apiKey) {
+  document.getElementById('apiKeyInput').value = apiKey;
+  document.getElementById('keyStatus').textContent = '✓ ключ задан';
+  document.getElementById('keyStatus').className = 'status ok';
+}
+
+function saveKey() {
+  apiKey = document.getElementById('apiKeyInput').value.trim();
+  localStorage.setItem('apiKey', apiKey);
+  const st = document.getElementById('keyStatus');
+  if (apiKey) { st.textContent = '✓ сохранён'; st.className = 'status ok'; }
+  else { st.textContent = ''; }
+}
+
+// ─── Cart ─────────────────────────────────────────────────────────────────────
+function addToCart(productId, qty = 1) {
+  const product = CATALOG.find(p => p.id === productId);
+  if (!product) return;
+  const existing = cart.find(i => i.product.id === productId);
+  if (existing) existing.qty += qty;
+  else cart.push({ product, qty });
+  renderCart();
+}
+
+function clearCart() {
+  cart = [];
+  history = [];
+  renderCart();
+  appendMsg('bot', '🗑 Корзина очищена. Начнём сначала?');
+}
+
+function renderCart() {
+  const el = document.getElementById('cartItems');
+  const totalEl = document.getElementById('cartTotal');
+  const btn = document.getElementById('checkoutBtn');
+
+  if (!cart.length) {
+    el.innerHTML = '<div class="cart-empty">Корзина пуста</div>';
+    totalEl.textContent = '0 ₽';
+    btn.disabled = true;
+    return;
+  }
+
+  let total = 0;
+  el.innerHTML = cart.map(i => {
+    const sub = i.product.price * i.qty;
+    total += sub;
+    return `<div class="cart-item">
+      <div class="item-name">${i.product.name}</div>
+      <div class="item-meta">
+        <span>${i.qty} × ${i.product.price} ₽</span>
+        <span class="item-price">${sub} ₽</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  totalEl.textContent = `${total} ₽`;
+  btn.disabled = false;
+}
+
+function checkout() {
+  alert('Заказ оформлен! В реальном приложении здесь был бы переход к оплате. 🎉');
+}
+
+// ─── Chat UI ──────────────────────────────────────────────────────────────────
+function appendMsg(role, text, typing = false) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}${typing ? ' typing' : ''}`;
+  el.textContent = text;
+  const c = document.getElementById('messages');
+  c.appendChild(el);
+  c.scrollTop = c.scrollHeight;
+  return el;
+}
+
+function setLoading(on) {
+  document.getElementById('sendBtn').disabled = on;
+  document.getElementById('msgInput').disabled = on;
+}
+
+function suggest(text) {
+  document.getElementById('msgInput').value = text;
+  sendMessage();
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  appendMsg('user', text);
+  const typing = appendMsg('bot', '⏳ Подбираю товары…', true);
+  setLoading(true);
+
+  try {
+    let reply;
+    if (apiKey) {
+      reply = await claudeChat(text);
+    } else {
+      await new Promise(r => setTimeout(r, 600)); // short artificial delay
+      reply = demoChat(text);
+    }
+    typing.remove();
+    appendMsg('bot', reply);
+  } catch(e) {
+    typing.remove();
+    appendMsg('bot', '❌ Ошибка: ' + e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ─── Demo mode (no API key) ───────────────────────────────────────────────────
+function demoChat(msg) {
+  const lc = msg.toLowerCase();
+
+  const budgetM = lc.match(/(\d+)\s*(руб|₽|р\b)/);
+  const budget = budgetM ? parseInt(budgetM[1]) : 1500;
+
+  const wantTags = [];
+  if (/безлактоз/.test(lc)) wantTags.push('безлактозный');
+  if (/веган/.test(lc)) wantTags.push('веганский');
+  if (/безглют/.test(lc)) wantTags.push('безглютеновый');
+  if (/завтрак|утро/.test(lc)) wantTags.push('завтрак');
+  if (/обед|ужин/.test(lc)) wantTags.push('обед');
+  if (/белок|протеин/.test(lc)) wantTags.push('белок');
+  if (!wantTags.length) wantTags.push('завтрак');
+
+  let pool = CATALOG.filter(p =>
+    p.price <= budget && wantTags.every(t => p.tags.includes(t))
+  );
+  if (!pool.length) pool = CATALOG.filter(p => p.price <= budget);
+
+  const selected = [];
+  let total = 0;
+  for (const p of pool) {
+    if (total + p.price <= budget && selected.length < 7) {
+      selected.push(p);
+      total += p.price;
+    }
+  }
+
+  if (!selected.length) return `Не нашёл подходящих товаров до ${budget} ₽. Попробуйте увеличить бюджет.`;
+
+  selected.forEach(p => addToCart(p.id));
+
+  const lines = selected.map(p => `• ${p.name} — ${p.price} ₽`).join('\n');
+  return `Подобрал для вас:\n${lines}\n\nИтого: ${total} ₽ из ${budget} ₽\nВсё добавлено в корзину! 🛒`;
+}
+
+// ─── Claude API mode ──────────────────────────────────────────────────────────
+const TOOLS_DEF = [
+  {
+    name: "search_products",
+    description: "Поиск товаров в каталоге по тегам и бюджету",
+    input_schema: {
+      type: "object",
+      properties: {
+        tags: { type: "array", items: { type: "string" },
+          description: "Теги: безлактозный, веганский, завтрак, обед, белок, безглютеновый" },
+        max_price: { type: "number", description: "Максимальная цена товара" },
+        query: { type: "string", description: "Поиск по названию" }
+      }
+    }
+  },
+  {
+    name: "add_to_cart",
+    description: "Добавить товар в корзину",
+    input_schema: {
+      type: "object",
+      properties: {
+        product_id: { type: "integer", description: "ID товара" },
+        quantity: { type: "integer", description: "Количество", default: 1 }
+      },
+      required: ["product_id"]
+    }
+  },
+  {
+    name: "get_cart",
+    description: "Получить текущую корзину",
+    input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "clear_cart",
+    description: "Очистить корзину",
+    input_schema: { type: "object", properties: {} }
+  }
+];
+
+function runTool(name, input) {
+  if (name === "search_products") {
+    let pool = [...CATALOG];
+    if (input.max_price) pool = pool.filter(p => p.price <= input.max_price);
+    if (input.tags && input.tags.length)
+      pool = pool.filter(p => input.tags.every(t => p.tags.includes(t)));
+    if (input.query) {
+      const q = input.query.toLowerCase();
+      pool = pool.filter(p => p.name.toLowerCase().includes(q));
+    }
+    return pool;
+  }
+  if (name === "add_to_cart") {
+    addToCart(input.product_id, input.quantity || 1);
+    const p = CATALOG.find(x => x.id === input.product_id);
+    return { added: p ? p.name : "?", price: p ? p.price : 0 };
+  }
+  if (name === "get_cart") {
+    const total = cart.reduce((s, i) => s + i.product.price * i.qty, 0);
+    return { items: cart.map(i => ({name: i.product.name, price: i.product.price, qty: i.qty, subtotal: i.product.price * i.qty})), total };
+  }
+  if (name === "clear_cart") {
+    cart = []; renderCart();
+    return { cleared: true };
+  }
+  return { error: "Unknown tool" };
+}
+
+async function claudeChat(userMsg) {
+  history.push({ role: "user", content: userMsg });
+
+  const SYSTEM = `Ты — консьерж-помощник продуктового магазина.
+Покупатель описывает запрос, ты подбираешь товары из каталога и добавляешь в корзину.
+Используй инструменты: сначала search_products, затем add_to_cart для каждого товара, потом get_cart.
+Следи за бюджетом. Отвечай по-русски, кратко и дружелюбно.`;
+
+  let messages = [...history];
+
+  while (true) {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-calls": "true",
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        system: SYSTEM,
+        tools: TOOLS_DEF,
+        messages
+      })
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+
+    if (data.stop_reason === "tool_use") {
+      const toolResults = [];
+      for (const block of data.content) {
+        if (block.type === "tool_use") {
+          const result = runTool(block.name, block.input);
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: JSON.stringify(result)
+          });
+        }
+      }
+      messages.push({ role: "assistant", content: data.content });
+      messages.push({ role: "user", content: toolResults });
+    } else {
+      const text = data.content.filter(b => b.type === "text").map(b => b.text).join("").trim();
+      messages.push({ role: "assistant", content: text });
+      history = messages;
+      return text;
+    }
+  }
+}
+</script>
+</body>
+</html>
