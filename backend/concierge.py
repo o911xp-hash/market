@@ -1,11 +1,14 @@
 import json
+import os
+import re
 from typing import Optional
 import anthropic
 from sqlalchemy.orm import Session
 from database import Product, CartItem
 
 
-client = anthropic.Anthropic()
+_api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+client = anthropic.Anthropic(api_key=_api_key) if _api_key else None
 
 TOOLS = [
     {
@@ -203,7 +206,65 @@ def run_tool(tool_name: str, tool_input: dict, db: Session, session_id: str):
     return {"error": "Unknown tool"}
 
 
+def _demo_chat(user_message: str, db: Session, session_id: str) -> str:
+    """Fallback when no API key: keyword-based matching for demo."""
+    msg = user_message.lower()
+
+    # Parse budget
+    budget_match = re.search(r'(\d+)\s*(руб|₽|р\.)', msg)
+    budget = float(budget_match.group(1)) if budget_match else 2000.0
+
+    # Determine tags to search
+    tags = []
+    if "безлактоз" in msg:
+        tags.append("безлактозный")
+    if "веган" in msg:
+        tags.append("веганский")
+    if "завтрак" in msg or "утро" in msg:
+        tags.append("завтрак")
+    if "обед" in msg or "ужин" in msg:
+        tags.append("обед")
+    if not tags:
+        tags = ["завтрак"]
+
+    products = search_products_impl(db, tags=tags, max_price=budget)
+    if not products:
+        products = search_products_impl(db, max_price=budget)
+
+    # Greedy fill up to budget
+    selected = []
+    total = 0.0
+    for p in products:
+        if total + p["price"] <= budget:
+            selected.append(p)
+            total += p["price"]
+        if len(selected) >= 6:
+            break
+
+    if not selected:
+        return "К сожалению, не нашёл подходящих товаров в указанном бюджете."
+
+    for p in selected:
+        add_to_cart_impl(db, session_id=session_id, product_id=p["id"], quantity=1)
+
+    names = "\n".join(f"• {p['name']} — {p['price']} ₽" for p in selected)
+    return (
+        f"(⚠️ Демо-режим — API-ключ не задан)\n\n"
+        f"Подобрал для вас:\n{names}\n\n"
+        f"Итого: {total:.0f} ₽ из {budget:.0f} ₽\n\n"
+        f"Всё добавлено в корзину!"
+    )
+
+
 def chat(user_message: str, history: list, db: Session, session_id: str) -> tuple[str, list]:
+    if not client:
+        reply = _demo_chat(user_message, db, session_id)
+        new_history = history + [
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": reply},
+        ]
+        return reply, new_history
+
     messages = history + [{"role": "user", "content": user_message}]
 
     while True:
